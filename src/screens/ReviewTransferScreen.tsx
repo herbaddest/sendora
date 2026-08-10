@@ -2,12 +2,12 @@
 
 import React, { useState } from "react";
 import { HeaderBar } from "@/components/HeaderBar";
-import { ShieldCheck, ArrowRight, Lock, CheckCircle2, Zap, Info } from "lucide-react";
+import { ShieldCheck, ArrowRight, Lock, CheckCircle2, Zap, Info, Wallet, AlertTriangle, Plus } from "lucide-react";
 import { useApp } from "@/context/AppContext";
 import { calculateTransferFee } from "@/lib/feeCalculator";
 
 export const ReviewTransferScreen: React.FC = () => {
-  const { sendFlowDraft, navigateTo, confirmAndSendTransfer } = useApp();
+  const { sendFlowDraft, navigateTo, confirmAndSendTransfer, walletBalance } = useApp();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const sendAmount = sendFlowDraft.sendAmount || 100;
@@ -16,7 +16,11 @@ export const ReviewTransferScreen: React.FC = () => {
   const rate = sendFlowDraft.exchangeRate || 129.50;
   const recipientGets = Number((sendAmount * rate).toFixed(2));
 
+  const hasEnoughBalance = walletBalance >= totalAmount;
+  const shortfall = Number((totalAmount - walletBalance).toFixed(2));
+
   const handleConfirm = async () => {
+    if (!hasEnoughBalance) return;
     setIsSubmitting(true);
     navigateTo("processing");
   };
@@ -64,6 +68,55 @@ export const ReviewTransferScreen: React.FC = () => {
           </div>
         </div>
 
+        {/* Wallet Balance Card */}
+        <div className={`p-3.5 rounded-2xl flex items-center justify-between ${
+          hasEnoughBalance
+            ? "bg-emerald-500/10 border border-emerald-500/20"
+            : "bg-rose-500/10 border border-rose-500/30"
+        }`}>
+          <div className="flex items-center gap-2.5">
+            <Wallet className={`w-5 h-5 ${hasEnoughBalance ? "text-emerald-400" : "text-rose-400"}`} />
+            <div>
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                Wallet Balance
+              </span>
+              <span className={`text-sm font-black ${hasEnoughBalance ? "text-emerald-400" : "text-rose-400"}`}>
+                ${walletBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD
+              </span>
+            </div>
+          </div>
+          {hasEnoughBalance ? (
+            <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/15 px-2.5 py-1 rounded-full">
+              ✓ Sufficient
+            </span>
+          ) : (
+            <button
+              onClick={() => navigateTo("top_up")}
+              className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 text-emerald-300 text-xs font-bold transition-all active:scale-95"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>Top Up</span>
+            </button>
+          )}
+        </div>
+
+        {/* Insufficient Balance Warning */}
+        {!hasEnoughBalance && (
+          <div className="p-3.5 rounded-2xl bg-rose-500/10 border border-rose-500/25 flex items-start gap-2.5">
+            <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+            <div className="text-xs leading-relaxed">
+              <span className="font-bold text-rose-300">Insufficient balance.</span>
+              <span className="text-rose-200/80"> You need ${shortfall.toFixed(2)} more to complete this transfer. </span>
+              <button
+                onClick={() => navigateTo("top_up")}
+                className="text-emerald-400 font-bold underline underline-offset-2 hover:text-emerald-300"
+              >
+                Top up now
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Recipient & Method Card */}
         <div className="p-4 rounded-2xl bg-slate-800/60 border border-slate-700/60 space-y-2.5 text-xs">
           <h4 className="font-bold text-slate-300 uppercase tracking-wider text-[10px]">Delivery Details</h4>
@@ -94,11 +147,11 @@ export const ReviewTransferScreen: React.FC = () => {
         {/* Primary CTA Button */}
         <button
           onClick={handleConfirm}
-          disabled={isSubmitting}
-          className="w-full py-4 px-6 rounded-2xl bg-gradient-to-r from-indigo-500 via-indigo-600 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white font-extrabold text-sm shadow-xl shadow-indigo-600/30 active:scale-[0.98] transition-all flex items-center justify-center gap-2"
+          disabled={isSubmitting || !hasEnoughBalance}
+          className="w-full py-4 px-6 rounded-2xl bg-gradient-to-r from-indigo-500 via-indigo-600 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white font-extrabold text-sm shadow-xl shadow-indigo-600/30 active:scale-[0.98] transition-all flex items-center justify-center gap-2 disabled:opacity-40 disabled:pointer-events-none"
         >
           <Lock className="w-4 h-4 text-indigo-200" />
-          <span>Confirm & Send ${totalAmount.toFixed(2)} USD</span>
+          <span>{hasEnoughBalance ? `Confirm & Send $${totalAmount.toFixed(2)} USD` : "Insufficient Balance"}</span>
         </button>
       </div>
     </div>

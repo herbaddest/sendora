@@ -2,18 +2,21 @@
 
 import React, { useState } from "react";
 import { HeaderBar } from "@/components/HeaderBar";
-import { ArrowRight, UserCheck, Smartphone, DollarSign, Calculator, Info, ShieldCheck, Zap, ChevronRight } from "lucide-react";
+import { ArrowRight, UserCheck, Smartphone, DollarSign, Calculator, Info, ShieldCheck, Zap, ChevronRight, Wallet, AlertTriangle, Plus } from "lucide-react";
 import { useApp } from "@/context/AppContext";
 import { calculateTransferFee } from "@/lib/feeCalculator";
 
 export const SendMoneyScreen: React.FC = () => {
-  const { sendFlowDraft, updateSendDraft, navigateTo, getRateFor, recipients } = useApp();
+  const { sendFlowDraft, updateSendDraft, navigateTo, getRateFor, recipients, walletBalance } = useApp();
 
   const currentRate = getRateFor(sendFlowDraft.recipientCurrency);
   const sendAmount = sendFlowDraft.sendAmount || 100;
   const fee = calculateTransferFee(sendAmount);
   const receiveAmount = Number((sendAmount * currentRate).toFixed(2));
   const totalCharged = Number((sendAmount + fee).toFixed(2));
+
+  const hasEnoughBalance = walletBalance >= totalCharged;
+  const shortfall = Number((totalCharged - walletBalance).toFixed(2));
 
   const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = parseFloat(e.target.value);
@@ -27,6 +30,36 @@ export const SendMoneyScreen: React.FC = () => {
       <HeaderBar title="Send money" showBack onBack={() => navigateTo("home")} />
 
       <div className="p-4 space-y-5 overflow-y-auto flex-1">
+        {/* Wallet Balance Strip */}
+        <div className={`p-3.5 rounded-2xl flex items-center justify-between ${
+          hasEnoughBalance
+            ? "bg-slate-800/60 border border-slate-700/60"
+            : "bg-rose-500/10 border border-rose-500/30"
+        }`}>
+          <div className="flex items-center gap-2.5">
+            <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${
+              hasEnoughBalance ? "bg-indigo-500/20" : "bg-rose-500/20"
+            }`}>
+              <Wallet className={`w-4.5 h-4.5 ${hasEnoughBalance ? "text-indigo-400" : "text-rose-400"}`} />
+            </div>
+            <div>
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                Wallet Balance
+              </span>
+              <span className={`text-base font-black ${hasEnoughBalance ? "text-white" : "text-rose-400"}`}>
+                ${walletBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </span>
+            </div>
+          </div>
+          <button
+            onClick={() => navigateTo("top_up")}
+            className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 text-emerald-300 text-xs font-bold transition-all active:scale-95"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            <span>Top Up</span>
+          </button>
+        </div>
+
         {/* Recipient Selection Card */}
         <div
           onClick={() => navigateTo("choose_recipient")}
@@ -117,6 +150,23 @@ export const SendMoneyScreen: React.FC = () => {
           </div>
         </div>
 
+        {/* Insufficient Balance Warning */}
+        {sendAmount > 0 && !hasEnoughBalance && (
+          <div className="p-3.5 rounded-2xl bg-rose-500/10 border border-rose-500/25 flex items-start gap-2.5">
+            <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+            <div className="text-xs leading-relaxed">
+              <span className="font-bold text-rose-300">Insufficient balance.</span>
+              <span className="text-rose-200/80"> You need ${shortfall.toFixed(2)} more. </span>
+              <button
+                onClick={() => navigateTo("top_up")}
+                className="text-emerald-400 font-bold underline underline-offset-2 hover:text-emerald-300"
+              >
+                Top up your wallet
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Calculation Explanation */}
         <div className="p-3.5 rounded-2xl bg-indigo-950/30 border border-indigo-500/20 text-indigo-200 text-xs flex items-start gap-2.5">
           <Info className="w-4 h-4 text-indigo-400 shrink-0 mt-0.5" />
@@ -135,8 +185,8 @@ export const SendMoneyScreen: React.FC = () => {
             });
             navigateTo("review_transfer");
           }}
-          disabled={sendAmount <= 0}
-          className="w-full py-4 px-6 rounded-2xl bg-gradient-to-r from-indigo-500 via-indigo-600 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white font-extrabold text-sm shadow-xl shadow-indigo-600/30 active:scale-[0.98] transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+          disabled={sendAmount <= 0 || !hasEnoughBalance}
+          className="w-full py-4 px-6 rounded-2xl bg-gradient-to-r from-indigo-500 via-indigo-600 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white font-extrabold text-sm shadow-xl shadow-indigo-600/30 active:scale-[0.98] transition-all flex items-center justify-center gap-2 disabled:opacity-40 disabled:pointer-events-none"
         >
           <span>Continue to Review</span>
           <ArrowRight className="w-4 h-4" />
