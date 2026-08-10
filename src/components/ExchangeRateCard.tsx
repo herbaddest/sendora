@@ -26,7 +26,7 @@ export const ExchangeRateCard: React.FC = () => {
         </div>
 
         <div className="text-[10px] text-indigo-200/80 bg-slate-800/60 px-2 py-0.5 rounded-md font-mono">
-          Fee: $1.99
+          Fees from $0.99
         </div>
       </div>
 

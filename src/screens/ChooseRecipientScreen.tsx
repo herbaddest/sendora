@@ -14,6 +14,7 @@ export const ChooseRecipientScreen: React.FC = () => {
   // New Recipient Form state
   const [fullName, setFullName] = useState("");
   const [phone, setPhone] = useState("");
+  const [accountNumber, setAccountNumber] = useState("");
   const [provider, setProvider] = useState<"M-Pesa" | "Airtel Money" | "Equity Bank" | "KCB Bank">("M-Pesa");
   const [deliveryMethod, setDeliveryMethod] = useState<"mobile_money" | "bank_transfer">("mobile_money");
 
@@ -38,15 +39,24 @@ export const ChooseRecipientScreen: React.FC = () => {
 
   const handleAddSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!fullName.trim() || !phone.trim()) return;
+
+    const isBank = deliveryMethod === "bank_transfer";
+
+    // For mobile money, phone is required. For bank, account number is required.
+    if (!fullName.trim()) return;
+    if (isBank && !accountNumber.trim()) return;
+    if (!isBank && !phone.trim()) return;
+
+    const recipientPhone = isBank ? (phone.trim() || accountNumber) : phone;
+    const recipientAccount = isBank ? accountNumber : phone;
 
     const newRec = await addRecipient({
       fullName,
-      phone,
+      phone: recipientPhone,
       country: "Kenya",
       deliveryMethod,
       provider,
-      accountNumber: phone,
+      accountNumber: recipientAccount,
       isFavorite: true,
     });
 
@@ -94,7 +104,7 @@ export const ChooseRecipientScreen: React.FC = () => {
                 </div>
                 <div>
                   <h4 className="text-sm font-bold text-white group-hover:text-indigo-300">{rec.fullName}</h4>
-                  <p className="text-xs text-slate-400">{rec.provider} • {rec.phone}</p>
+                  <p className="text-xs text-slate-400">{rec.provider} • {rec.deliveryMethod === "bank_transfer" ? rec.accountNumber : rec.phone}</p>
                 </div>
               </div>
               <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-indigo-500/20 text-indigo-300">
@@ -130,25 +140,17 @@ export const ChooseRecipientScreen: React.FC = () => {
               </div>
 
               <div>
-                <label className="text-xs font-bold text-slate-300 mb-1 block">Phone Number (M-Pesa / Airtel)</label>
-                <input
-                  type="tel"
-                  placeholder="+254 712 345 678"
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-indigo-500"
-                  required
-                />
-              </div>
-
-              <div>
                 <label className="text-xs font-bold text-slate-300 mb-1 block">Provider</label>
                 <select
                   value={provider}
                   onChange={(e) => {
                     const p = e.target.value as any;
                     setProvider(p);
-                    setDeliveryMethod(p.includes("Bank") ? "bank_transfer" : "mobile_money");
+                    const isBank = p.includes("Bank");
+                    setDeliveryMethod(isBank ? "bank_transfer" : "mobile_money");
+                    // Clear the input when switching between bank and mobile money
+                    setPhone("");
+                    setAccountNumber("");
                   }}
                   className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-indigo-500"
                 >
@@ -158,6 +160,54 @@ export const ChooseRecipientScreen: React.FC = () => {
                   <option value="KCB Bank">🏦 KCB Bank Kenya</option>
                 </select>
               </div>
+
+              {/* Show phone number for mobile money, account number for banks */}
+              {deliveryMethod === "mobile_money" ? (
+                <div>
+                  <label className="text-xs font-bold text-slate-300 mb-1 block">Phone Number</label>
+                  <input
+                    type="tel"
+                    placeholder="+254 712 345 678"
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                    className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-indigo-500"
+                    required
+                  />
+                  <p className="text-[10px] text-slate-500 mt-1">
+                    The M-Pesa or Airtel Money registered phone number
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-3.5">
+                  <div>
+                    <label className="text-xs font-bold text-slate-300 mb-1 block">Account Number</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. 0110293847501"
+                      value={accountNumber}
+                      onChange={(e) => setAccountNumber(e.target.value)}
+                      className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white font-mono focus:outline-none focus:border-indigo-500"
+                      required
+                    />
+                    <p className="text-[10px] text-slate-500 mt-1">
+                      The bank account number for {provider}
+                    </p>
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold text-slate-300 mb-1 block">Phone Number (optional)</label>
+                    <input
+                      type="tel"
+                      placeholder="+254 700 000 000"
+                      value={phone}
+                      onChange={(e) => setPhone(e.target.value)}
+                      className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-indigo-500"
+                    />
+                    <p className="text-[10px] text-slate-500 mt-1">
+                      For SMS notification of the transfer
+                    </p>
+                  </div>
+                </div>
+              )}
 
               <div className="pt-2 flex gap-2">
                 <button

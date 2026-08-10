@@ -2,6 +2,7 @@
 
 import React from "react";
 import { HeaderBar } from "@/components/HeaderBar";
+import { BalanceCard } from "@/components/BalanceCard";
 import { ExchangeRateCard } from "@/components/ExchangeRateCard";
 import { RecipientCard } from "@/components/RecipientCard";
 import { TransferCard } from "@/components/TransferCard";
@@ -19,7 +20,10 @@ export const HomeScreen: React.FC = () => {
       <HeaderBar />
 
       <div className="p-4 space-y-6 overflow-y-auto flex-1">
-        {/* Main Exchange Rate Card */}
+        {/* Safaricom-style Balance Card */}
+        <BalanceCard />
+
+        {/* Exchange Rate Card */}
         <ExchangeRateCard />
 
         {/* Quick Send Section */}

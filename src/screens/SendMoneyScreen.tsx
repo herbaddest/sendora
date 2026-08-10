@@ -4,13 +4,14 @@ import React, { useState } from "react";
 import { HeaderBar } from "@/components/HeaderBar";
 import { ArrowRight, UserCheck, Smartphone, DollarSign, Calculator, Info, ShieldCheck, Zap, ChevronRight } from "lucide-react";
 import { useApp } from "@/context/AppContext";
+import { calculateTransferFee } from "@/lib/feeCalculator";
 
 export const SendMoneyScreen: React.FC = () => {
   const { sendFlowDraft, updateSendDraft, navigateTo, getRateFor, recipients } = useApp();
 
   const currentRate = getRateFor(sendFlowDraft.recipientCurrency);
   const sendAmount = sendFlowDraft.sendAmount || 100;
-  const fee = sendFlowDraft.fee || 1.99;
+  const fee = calculateTransferFee(sendAmount);
   const receiveAmount = Number((sendAmount * currentRate).toFixed(2));
   const totalCharged = Number((sendAmount + fee).toFixed(2));
 
@@ -129,7 +130,7 @@ export const SendMoneyScreen: React.FC = () => {
           onClick={() => {
             updateSendDraft({
               sendAmount,
-              fee,
+              fee: calculateTransferFee(sendAmount),
               exchangeRate: currentRate,
             });
             navigateTo("review_transfer");

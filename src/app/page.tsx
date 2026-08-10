@@ -17,6 +17,7 @@ import { TransfersScreen } from "@/screens/TransfersScreen";
 import { RecipientsScreen } from "@/screens/RecipientsScreen";
 import { ProfileScreen } from "@/screens/ProfileScreen";
 import { DocsScreen } from "@/screens/DocsScreen";
+import { TopUpScreen } from "@/screens/TopUpScreen";
 
 function AppContent() {
   const { activeScreen } = useApp();
@@ -47,6 +48,8 @@ function AppContent() {
         return <ProfileScreen />;
       case "docs":
         return <DocsScreen />;
+      case "top_up":
+        return <TopUpScreen />;
       default:
         return <HomeScreen />;
     }

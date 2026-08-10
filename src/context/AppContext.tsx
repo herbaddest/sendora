@@ -3,6 +3,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { User, Recipient, Transfer, ExchangeRate, Notification, TransferStatus } from "@/types";
 import { INITIAL_USER, INITIAL_RECIPIENTS, INITIAL_TRANSFERS, INITIAL_RATES, INITIAL_NOTIFICATIONS } from "@/lib/seedData";
+import { calculateTransferFee } from "@/lib/feeCalculator";
 
 export type ScreenName =
   | "welcome"
@@ -17,7 +18,8 @@ export type ScreenName =
   | "recipients"
   | "transfers"
   | "profile"
-  | "docs";
+  | "docs"
+  | "top_up";
 
 export type BottomTab = "home" | "recipients" | "transfers" | "profile" | "docs";
 
@@ -48,6 +50,7 @@ interface AppContextType {
   selectedTransferId: string | null;
   sendFlowDraft: SendFlowDraft;
   isLoading: boolean;
+  walletBalance: number;
   demoSettings: {
     customRate: number;
     instantDelivery: boolean;
@@ -79,6 +82,9 @@ interface AppContextType {
   markNotificationsAsRead: () => Promise<void>;
   resetAllDemoData: () => Promise<void>;
   getRateFor: (toCurrency: string) => number;
+  
+  // Wallet
+  topUpWallet: (amount: number) => void;
 }
 
 const DEFAULT_DRAFT: SendFlowDraft = {
@@ -92,7 +98,7 @@ const DEFAULT_DRAFT: SendFlowDraft = {
   sendCurrency: "USD",
   recipientCurrency: "KES",
   exchangeRate: 129.50,
-  fee: 1.99,
+  fee: calculateTransferFee(100),
   note: "",
 };
 
@@ -111,6 +117,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [selectedTransferId, setSelectedTransferId] = useState<string | null>("SD-2026-892104");
   const [sendFlowDraft, setSendFlowDraft] = useState<SendFlowDraft>(DEFAULT_DRAFT);
   const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [walletBalance, setWalletBalance] = useState<number>(0);
   const [demoSettings, setDemoSettings] = useState({
     customRate: 129.50,
     instantDelivery: false,
@@ -304,6 +311,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         const currentRate = getRateFor(next.recipientCurrency);
         next.exchangeRate = currentRate;
       }
+      if (patch.sendAmount !== undefined) {
+        next.fee = calculateTransferFee(next.sendAmount);
+      }
       return next;
     });
   };
@@ -323,7 +333,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       sendCurrency: "USD",
       recipientCurrency: "KES",
       exchangeRate: currentRate,
-      fee: 1.99,
+      fee: calculateTransferFee(100),
       note: "Family Transfer",
     });
 
@@ -358,6 +368,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
     setTransfers((prev) => [newTransfer, ...prev]);
     setSelectedTransferId(newId);
+
+    // Deduct from wallet balance
+    const totalDeducted = sendFlowDraft.sendAmount + sendFlowDraft.fee;
+    setWalletBalance((prev) => Math.max(0, Number((prev - totalDeducted).toFixed(2))));
 
     // Add immediate notification
     const newNotif: Notification = {
@@ -450,6 +464,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setNotifications(INITIAL_NOTIFICATIONS);
     setDemoSettings({ customRate: 129.50, instantDelivery: false });
     setSelectedTransferId("SD-2026-892104");
+    setWalletBalance(0);
 
     try {
       await fetch("/api/demo/reset", { method: "POST" });
@@ -472,6 +487,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         selectedTransferId,
         sendFlowDraft,
         isLoading,
+        walletBalance,
         demoSettings,
         navigateTo,
         setActiveTab,
@@ -490,6 +506,19 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         markNotificationsAsRead,
         resetAllDemoData,
         getRateFor,
+        topUpWallet: (amount: number) => {
+          setWalletBalance((prev) => Number((prev + amount).toFixed(2)));
+          const newNotif: Notification = {
+            id: `notif_${Date.now()}`,
+            userId: user?.id || "usr_john_doe_01",
+            title: "Wallet Funded 💰",
+            message: `$${amount.toFixed(2)} USD has been added to your Sendora wallet.`,
+            type: "transfer",
+            isRead: false,
+            createdAt: new Date().toISOString(),
+          };
+          setNotifications((prev) => [newNotif, ...prev]);
+        },
       }}
     >
       {children}

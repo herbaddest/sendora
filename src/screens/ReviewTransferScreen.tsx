@@ -4,13 +4,14 @@ import React, { useState } from "react";
 import { HeaderBar } from "@/components/HeaderBar";
 import { ShieldCheck, ArrowRight, Lock, CheckCircle2, Zap, Info } from "lucide-react";
 import { useApp } from "@/context/AppContext";
+import { calculateTransferFee } from "@/lib/feeCalculator";
 
 export const ReviewTransferScreen: React.FC = () => {
   const { sendFlowDraft, navigateTo, confirmAndSendTransfer } = useApp();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const sendAmount = sendFlowDraft.sendAmount || 100;
-  const fee = sendFlowDraft.fee || 1.99;
+  const fee = sendFlowDraft.fee || calculateTransferFee(sendFlowDraft.sendAmount || 100);
   const totalAmount = Number((sendAmount + fee).toFixed(2));
   const rate = sendFlowDraft.exchangeRate || 129.50;
   const recipientGets = Number((sendAmount * rate).toFixed(2));
