@@ -1,14 +1,23 @@
-import { pgTable, text, timestamp, numeric, boolean, uuid, integer } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, numeric, boolean, integer } from "drizzle-orm/pg-core";
 
 export const users = pgTable("users", {
   id: text("id").primaryKey(),
   fullName: text("full_name").notNull(),
   email: text("email").notNull().unique(),
   phone: text("phone").notNull(),
+  passwordHash: text("password_hash").notNull(),
   country: text("country").notNull().default("US"),
   avatarUrl: text("avatar_url"),
   isVerified: boolean("is_verified").notNull().default(true),
   createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const wallets = pgTable("wallets", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull().unique(),
+  balance: numeric("balance", { precision: 12, scale: 2 }).notNull().default("0.00"),
+  currency: text("currency").notNull().default("USD"),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
 export const recipients = pgTable("recipients", {
@@ -17,15 +26,15 @@ export const recipients = pgTable("recipients", {
   fullName: text("full_name").notNull(),
   phone: text("phone").notNull(),
   country: text("country").notNull().default("Kenya"),
-  deliveryMethod: text("delivery_method").notNull(), // 'mobile_money' | 'bank_transfer'
-  provider: text("provider").notNull(), // 'M-Pesa' | 'Airtel Money' | 'Equity Bank' | 'KCB Bank'
-  accountNumber: text("account_number").notNull(), // phone or bank acct #
+  deliveryMethod: text("delivery_method").notNull(),
+  provider: text("provider").notNull(),
+  accountNumber: text("account_number").notNull(),
   isFavorite: boolean("is_favorite").notNull().default(false),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
 export const transfers = pgTable("transfers", {
-  id: text("id").primaryKey(), // e.g. SD-2026-892104
+  id: text("id").primaryKey(),
   userId: text("user_id").notNull(),
   recipientId: text("recipient_id").notNull(),
   senderAmount: numeric("sender_amount", { precision: 12, scale: 2 }).notNull(),
@@ -38,10 +47,20 @@ export const transfers = pgTable("transfers", {
   provider: text("provider").notNull(),
   accountNumber: text("account_number").notNull(),
   recipientName: text("recipient_name").notNull(),
-  status: text("status").notNull().default("processing"), // 'processing' | 'delivered' | 'failed' | 'cancelled'
-  currentStep: integer("current_step").notNull().default(2), // 1: Created, 2: Payment Received, 3: Sending, 4: Delivered
+  status: text("status").notNull().default("processing"),
+  currentStep: integer("current_step").notNull().default(2),
   note: text("note"),
   estimatedDelivery: text("estimated_delivery").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const topups = pgTable("topups", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  amount: numeric("amount", { precision: 12, scale: 2 }).notNull(),
+  method: text("method").notNull(),
+  cardLast4: text("card_last4"),
+  status: text("status").notNull().default("completed"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -60,7 +79,7 @@ export const notifications = pgTable("notifications", {
   userId: text("user_id").notNull(),
   title: text("title").notNull(),
   message: text("message").notNull(),
-  type: text("type").notNull().default("info"), // 'transfer' | 'promo' | 'security'
+  type: text("type").notNull().default("info"),
   isRead: boolean("is_read").notNull().default(false),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });

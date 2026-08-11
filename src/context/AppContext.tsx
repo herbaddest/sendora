@@ -1,8 +1,19 @@
 "use client";
 
-import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
-import { User, Recipient, Transfer, ExchangeRate, Notification, TransferStatus } from "@/types";
-import { INITIAL_USER, INITIAL_RECIPIENTS, INITIAL_TRANSFERS, INITIAL_RATES, INITIAL_NOTIFICATIONS } from "@/lib/seedData";
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useCallback,
+  ReactNode,
+} from "react";
+import {
+  User,
+  Recipient,
+  Transfer,
+  ExchangeRate,
+  Notification,
+} from "@/types";
 import { calculateTransferFee } from "@/lib/feeCalculator";
 
 export type ScreenName =
@@ -21,7 +32,12 @@ export type ScreenName =
   | "docs"
   | "top_up";
 
-export type BottomTab = "home" | "recipients" | "transfers" | "profile" | "docs";
+export type BottomTab =
+  | "home"
+  | "recipients"
+  | "transfers"
+  | "profile"
+  | "docs";
 
 export interface SendFlowDraft {
   recipientId: string;
@@ -55,122 +71,182 @@ interface AppContextType {
     customRate: number;
     instantDelivery: boolean;
   };
-  
-  // Navigation & Screen Control
+
   navigateTo: (screen: ScreenName, tab?: BottomTab) => void;
   setActiveTab: (tab: BottomTab) => void;
   setSelectedTransferId: (id: string | null) => void;
-  
-  // Auth
-  login: (email: string) => Promise<boolean>;
-  signup: (fullName: string, email: string, phone: string) => Promise<boolean>;
+
+  login: (email: string, password: string) => Promise<boolean>;
+  signup: (
+    fullName: string,
+    email: string,
+    phone: string,
+    password: string
+  ) => Promise<boolean>;
   logout: () => void;
-  
-  // Recipient Management
-  addRecipient: (recipient: Omit<Recipient, "id" | "userId" | "createdAt">) => Promise<Recipient>;
-  updateRecipient: (id: string, recipient: Partial<Recipient>) => Promise<void>;
+
+  addRecipient: (
+    recipient: Omit<Recipient, "id" | "userId" | "createdAt">
+  ) => Promise<Recipient>;
+  updateRecipient: (
+    id: string,
+    recipient: Partial<Recipient>
+  ) => Promise<void>;
   deleteRecipient: (id: string) => Promise<void>;
-  
-  // Transfer Management
+
   updateSendDraft: (patch: Partial<SendFlowDraft>) => void;
   initiateSendFlow: (recipient?: Recipient) => void;
   confirmAndSendTransfer: () => Promise<Transfer>;
-  updateTransferStep: (transferId: string, step: number, status?: TransferStatus) => Promise<void>;
-  
-  // Rates
+  updateTransferStep: (
+    transferId: string,
+    step: number,
+    status?: string
+  ) => Promise<void>;
+
   updateRate: (toCurrency: string, rate: number) => Promise<void>;
   markNotificationsAsRead: () => Promise<void>;
   resetAllDemoData: () => Promise<void>;
   getRateFor: (toCurrency: string) => number;
-  
-  // Wallet
-  topUpWallet: (amount: number) => void;
+
+  topUpWallet: (
+    amount: number,
+    method?: string,
+    cardLast4?: string
+  ) => Promise<void>;
 }
 
 const DEFAULT_DRAFT: SendFlowDraft = {
-  recipientId: "rec_mary_wanjiku",
-  recipientName: "Mary Wanjiku",
-  phone: "+254 712 345 234",
+  recipientId: "",
+  recipientName: "",
+  phone: "",
   provider: "M-Pesa",
-  accountNumber: "•••• 234",
+  accountNumber: "",
   deliveryMethod: "mobile_money",
   sendAmount: 100,
   sendCurrency: "USD",
   recipientCurrency: "KES",
-  exchangeRate: 129.50,
+  exchangeRate: 129.5,
   fee: calculateTransferFee(100),
   note: "",
 };
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
-export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<User | null>(INITIAL_USER);
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(true);
-  const [recipients, setRecipients] = useState<Recipient[]>(INITIAL_RECIPIENTS);
-  const [transfers, setTransfers] = useState<Transfer[]>(INITIAL_TRANSFERS);
-  const [rates, setRates] = useState<ExchangeRate[]>(INITIAL_RATES);
-  const [notifications, setNotifications] = useState<Notification[]>(INITIAL_NOTIFICATIONS);
-  
-  const [activeScreen, setActiveScreen] = useState<ScreenName>("home");
-  const [activeTab, setActiveTabState] = useState<BottomTab>("home");
-  const [selectedTransferId, setSelectedTransferId] = useState<string | null>("SD-2026-892104");
-  const [sendFlowDraft, setSendFlowDraft] = useState<SendFlowDraft>(DEFAULT_DRAFT);
-  const [isLoading, setIsLoading] = useState<boolean>(false);
-  const [walletBalance, setWalletBalance] = useState<number>(0);
+export const AppProvider: React.FC<{ children: ReactNode }> = ({
+  children,
+}) => {
+  const [user, setUser] = useState<User | null>(null);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [recipients, setRecipients] = useState<Recipient[]>([]);
+  const [transfers, setTransfers] = useState<Transfer[]>([]);
+  const [rates, setRates] = useState<ExchangeRate[]>([]);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+
+  const [activeScreen, setActiveScreen] =
+    useState<ScreenName>("welcome");
+  const [activeTab, setActiveTabState] =
+    useState<BottomTab>("home");
+  const [selectedTransferId, setSelectedTransferId] =
+    useState<string | null>(null);
+
+  const [sendFlowDraft, setSendFlowDraft] =
+    useState<SendFlowDraft>(DEFAULT_DRAFT);
+
+  const [isLoading, setIsLoading] = useState(false);
+  const [walletBalance, setWalletBalance] = useState(0);
+
   const [demoSettings, setDemoSettings] = useState({
-    customRate: 129.50,
+    customRate: 129.5,
     instantDelivery: false,
   });
 
-  // Load from API on mount
-  useEffect(() => {
-    fetchInitialData();
-  }, []);
-
-  const fetchInitialData = async () => {
+  /*
+   * Load everything belonging to the current account.
+   * PostgreSQL is the source of truth.
+   */
+  const fetchUserData = useCallback(async (userId: string) => {
     try {
-      setIsLoading(true);
-      const [resAuth, resRec, resTrans, resRates, resNotif] = await Promise.allSettled([
-        fetch("/api/auth"),
-        fetch("/api/recipients"),
-        fetch("/api/transfers"),
+      const [
+        resRec,
+        resTrans,
+        resRates,
+        resNotif,
+        resWallet,
+      ] = await Promise.all([
+        fetch(`/api/recipients?userId=${encodeURIComponent(userId)}`),
+        fetch(`/api/transfers?userId=${encodeURIComponent(userId)}`),
         fetch("/api/rates"),
-        fetch("/api/notifications"),
+        fetch(`/api/notifications?userId=${encodeURIComponent(userId)}`),
+        fetch(`/api/wallet?userId=${encodeURIComponent(userId)}`),
       ]);
 
-      if (resAuth.status === "fulfilled" && resAuth.value.ok) {
-        const data = await resAuth.value.json();
-        if (data.user) setUser(data.user);
+      if (!resRec.ok) {
+        throw new Error("Failed to load recipients");
       }
-      if (resRec.status === "fulfilled" && resRec.value.ok) {
-        const data = await resRec.value.json();
-        if (data.recipients?.length) setRecipients(data.recipients);
-      }
-      if (resTrans.status === "fulfilled" && resTrans.value.ok) {
-        const data = await resTrans.value.json();
-        if (data.transfers?.length) setTransfers(data.transfers);
-      }
-      if (resRates.status === "fulfilled" && resRates.value.ok) {
-        const data = await resRates.value.json();
-        if (data.rates?.length) setRates(data.rates);
-      }
-      if (resNotif.status === "fulfilled" && resNotif.value.ok) {
-        const data = await resNotif.value.json();
-        if (data.notifications?.length) setNotifications(data.notifications);
-      }
-    } catch (e) {
-      console.warn("Failed fetching from server, using local defaults", e);
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
-  const navigateTo = (screen: ScreenName, tab?: BottomTab) => {
+      if (!resTrans.ok) {
+        throw new Error("Failed to load transfers");
+      }
+
+      if (!resRates.ok) {
+        throw new Error("Failed to load exchange rates");
+      }
+
+      if (!resNotif.ok) {
+        throw new Error("Failed to load notifications");
+      }
+
+      if (!resWallet.ok) {
+        throw new Error("Failed to load wallet");
+      }
+
+      const [
+        recipientsData,
+        transfersData,
+        ratesData,
+        notificationsData,
+        walletData,
+      ] = await Promise.all([
+        resRec.json(),
+        resTrans.json(),
+        resRates.json(),
+        resNotif.json(),
+        resWallet.json(),
+      ]);
+
+      setRecipients(recipientsData.recipients ?? []);
+      setTransfers(transfersData.transfers ?? []);
+      setRates(ratesData.rates ?? []);
+      setNotifications(notificationsData.notifications ?? []);
+
+      if (walletData.wallet) {
+        setWalletBalance(Number(walletData.wallet.balance));
+      }
+    } catch (error) {
+      console.error("Failed to load account data:", error);
+      throw error;
+    }
+  }, []);
+
+  const refreshUserData = useCallback(async () => {
+    if (!user?.id) return;
+
+    await fetchUserData(user.id);
+  }, [user?.id, fetchUserData]);
+
+  const navigateTo = (
+    screen: ScreenName,
+    tab?: BottomTab
+  ) => {
     setActiveScreen(screen);
+
     if (tab) {
       setActiveTabState(tab);
-    } else if (["home", "recipients", "transfers", "profile", "docs"].includes(screen)) {
+    } else if (
+      ["home", "recipients", "transfers", "profile", "docs"].includes(
+        screen
+      )
+    ) {
       setActiveTabState(screen as BottomTab);
     }
   };
@@ -184,151 +260,285 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     if (toCurrency === "KES" && demoSettings.customRate) {
       return demoSettings.customRate;
     }
-    const found = rates.find((r) => r.toCurrency === toCurrency);
-    return found ? found.rate : 129.50;
+
+    const found = rates.find(
+      (r) => r.toCurrency === toCurrency
+    );
+
+    return found ? found.rate : 129.5;
   };
 
-  const login = async (email: string): Promise<boolean> => {
+  /*
+   * LOGIN
+   *
+   * The account itself is stored in PostgreSQL.
+   * After login we immediately reload all associated data.
+   */
+  const login = async (
+    email: string,
+    password: string
+  ): Promise<boolean> => {
     setIsLoading(true);
+
     try {
       const res = await fetch("/api/auth", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "login", email }),
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          action: "login",
+          email,
+          password,
+        }),
       });
+
       const data = await res.json();
-      if (data.user) {
-        setUser(data.user);
-        setIsAuthenticated(true);
-        navigateTo("home");
-        return true;
+
+      if (!res.ok || !data.user) {
+        return false;
       }
-    } catch (e) {
-      console.error(e);
+
+      setUser(data.user);
+      setIsAuthenticated(true);
+
+      if (data.wallet) {
+        setWalletBalance(Number(data.wallet.balance));
+      }
+
+      await fetchUserData(data.user.id);
+
+      navigateTo("home");
+
+      return true;
+    } catch (error) {
+      console.error("Login error:", error);
+      return false;
     } finally {
       setIsLoading(false);
     }
-    // Fallback login
-    setIsAuthenticated(true);
-    setUser(INITIAL_USER);
-    navigateTo("home");
-    return true;
   };
 
-  const signup = async (fullName: string, email: string, phone: string): Promise<boolean> => {
+  /*
+   * SIGNUP
+   */
+  const signup = async (
+    fullName: string,
+    email: string,
+    phone: string,
+    password: string
+  ): Promise<boolean> => {
     setIsLoading(true);
+
     try {
       const res = await fetch("/api/auth", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "signup", fullName, email, phone }),
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          action: "signup",
+          fullName,
+          email,
+          phone,
+          password,
+        }),
       });
+
       const data = await res.json();
-      if (data.user) {
-        setUser(data.user);
-        setIsAuthenticated(true);
-        navigateTo("home");
-        return true;
+
+      if (!res.ok || !data.user) {
+        return false;
       }
-    } catch (e) {
-      console.error(e);
+
+      setUser(data.user);
+      setIsAuthenticated(true);
+
+      setRecipients([]);
+      setTransfers([]);
+      setNotifications([]);
+
+      if (data.wallet) {
+        setWalletBalance(Number(data.wallet.balance));
+      } else {
+        setWalletBalance(0);
+      }
+
+      await fetchUserData(data.user.id);
+
+      navigateTo("home");
+
+      return true;
+    } catch (error) {
+      console.error("Signup error:", error);
+      return false;
     } finally {
       setIsLoading(false);
     }
-    // Local fallback signup
-    const newUser: User = {
-      id: `usr_${Date.now()}`,
-      fullName,
-      email,
-      phone,
-      country: "United States",
-      isVerified: true,
-      createdAt: new Date().toISOString(),
-    };
-    setUser(newUser);
-    setIsAuthenticated(true);
-    navigateTo("home");
-    return true;
   };
 
   const logout = () => {
     setIsAuthenticated(false);
     setUser(null);
+    setWalletBalance(0);
+    setRecipients([]);
+    setTransfers([]);
+    setNotifications([]);
+    setSelectedTransferId(null);
+    setSendFlowDraft(DEFAULT_DRAFT);
+
     navigateTo("welcome");
   };
 
-  const addRecipient = async (recipientData: Omit<Recipient, "id" | "userId" | "createdAt">): Promise<Recipient> => {
-    const newRec: Recipient = {
-      ...recipientData,
-      id: `rec_${Date.now()}`,
-      userId: user?.id || "usr_john_doe_01",
-      createdAt: new Date().toISOString(),
-    };
+  /*
+   * RECIPIENTS
+   *
+   * No local fallback anymore.
+   * If PostgreSQL fails, the operation fails visibly instead
+   * of creating data that disappears on refresh.
+   */
+  const addRecipient = async (
+    recipientData: Omit<
+      Recipient,
+      "id" | "userId" | "createdAt"
+    >
+  ): Promise<Recipient> => {
+    const userId = user?.id;
 
-    setRecipients((prev) => [newRec, ...prev]);
-
-    try {
-      await fetch("/api/recipients", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(newRec),
-      });
-    } catch (e) {
-      console.error(e);
+    if (!userId) {
+      throw new Error("Not authenticated");
     }
 
-    return newRec;
+    const res = await fetch("/api/recipients", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        ...recipientData,
+        userId,
+      }),
+    });
+
+    const data = await res.json();
+
+    if (!res.ok || !data.recipient) {
+      throw new Error(
+        data.error || "Failed to add recipient"
+      );
+    }
+
+    setRecipients((prev) => [
+      data.recipient,
+      ...prev.filter((r) => r.id !== data.recipient.id),
+    ]);
+
+    return data.recipient;
   };
 
-  const updateRecipient = async (id: string, patch: Partial<Recipient>) => {
-    setRecipients((prev) =>
-      prev.map((r) => (r.id === id ? { ...r, ...patch } : r))
-    );
-    try {
-      await fetch("/api/recipients", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id, ...patch }),
-      });
-    } catch (e) {
-      console.error(e);
+  const updateRecipient = async (
+    id: string,
+    patch: Partial<Recipient>
+  ) => {
+    const res = await fetch("/api/recipients", {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        id,
+        ...patch,
+      }),
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      throw new Error(
+        data.error || "Failed to update recipient"
+      );
     }
+
+    setRecipients((prev) =>
+      prev.map((recipient) =>
+        recipient.id === id
+          ? { ...recipient, ...patch }
+          : recipient
+      )
+    );
   };
 
   const deleteRecipient = async (id: string) => {
-    setRecipients((prev) => prev.filter((r) => r.id !== id));
-    try {
-      await fetch(`/api/recipients?id=${id}`, { method: "DELETE" });
-    } catch (e) {
-      console.error(e);
+    const res = await fetch(
+      `/api/recipients?id=${encodeURIComponent(id)}`,
+      {
+        method: "DELETE",
+      }
+    );
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      throw new Error(
+        data.error || "Failed to delete recipient"
+      );
     }
+
+    setRecipients((prev) =>
+      prev.filter((recipient) => recipient.id !== id)
+    );
   };
 
-  const updateSendDraft = (patch: Partial<SendFlowDraft>) => {
+  /*
+   * SEND FLOW
+   */
+  const updateSendDraft = (
+    patch: Partial<SendFlowDraft>
+  ) => {
     setSendFlowDraft((prev) => {
-      const next = { ...prev, ...patch };
-      if (patch.sendAmount !== undefined || patch.recipientCurrency !== undefined) {
-        const currentRate = getRateFor(next.recipientCurrency);
-        next.exchangeRate = currentRate;
+      const next = {
+        ...prev,
+        ...patch,
+      };
+
+      if (
+        patch.sendAmount !== undefined ||
+        patch.recipientCurrency !== undefined
+      ) {
+        next.exchangeRate = getRateFor(
+          next.recipientCurrency
+        );
       }
+
       if (patch.sendAmount !== undefined) {
-        next.fee = calculateTransferFee(next.sendAmount);
+        next.fee = calculateTransferFee(
+          next.sendAmount
+        );
       }
+
       return next;
     });
   };
 
   const initiateSendFlow = (recipient?: Recipient) => {
-    const targetRec = recipient || recipients[0] || INITIAL_RECIPIENTS[0];
+    const targetRecipient =
+      recipient || recipients[0];
+
+    if (!targetRecipient) {
+      navigateTo("choose_recipient");
+      return;
+    }
+
     const currentRate = getRateFor("KES");
 
     setSendFlowDraft({
-      recipientId: targetRec.id,
-      recipientName: targetRec.fullName,
-      phone: targetRec.phone,
-      provider: targetRec.provider,
-      accountNumber: targetRec.accountNumber,
-      deliveryMethod: targetRec.deliveryMethod,
+      recipientId: targetRecipient.id,
+      recipientName: targetRecipient.fullName,
+      phone: targetRecipient.phone,
+      provider: targetRecipient.provider,
+      accountNumber: targetRecipient.accountNumber,
+      deliveryMethod:
+        targetRecipient.deliveryMethod,
       sendAmount: 100,
       sendCurrency: "USD",
       recipientCurrency: "KES",
@@ -340,136 +550,363 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     navigateTo("send_money");
   };
 
-  const confirmAndSendTransfer = async (): Promise<Transfer> => {
-    const currentRate = getRateFor(sendFlowDraft.recipientCurrency);
-    const receiveAmount = Number((sendFlowDraft.sendAmount * currentRate).toFixed(2));
-    const newId = `SD-2026-${Math.floor(100000 + Math.random() * 900000)}`;
+  /*
+   * TRANSFER
+   *
+   * PostgreSQL is the source of truth.
+   * No client-side fake fallback is created if the API fails.
+   */
+  const confirmAndSendTransfer =
+    async (): Promise<Transfer> => {
+      const userId = user?.id;
 
-    const newTransfer: Transfer = {
-      id: newId,
-      userId: user?.id || "usr_john_doe_01",
-      recipientId: sendFlowDraft.recipientId,
-      senderAmount: sendFlowDraft.sendAmount,
-      senderCurrency: sendFlowDraft.sendCurrency,
-      recipientAmount: receiveAmount,
-      recipientCurrency: sendFlowDraft.recipientCurrency,
-      fee: sendFlowDraft.fee,
-      exchangeRate: currentRate,
-      deliveryMethod: sendFlowDraft.deliveryMethod,
-      provider: sendFlowDraft.provider,
-      accountNumber: sendFlowDraft.accountNumber,
-      recipientName: sendFlowDraft.recipientName,
-      status: "processing",
-      currentStep: 2, // Payment received, preparing sending
-      note: sendFlowDraft.note,
-      estimatedDelivery: "Instantly (~2 mins)",
-      createdAt: new Date().toISOString(),
-    };
+      if (!userId) {
+        throw new Error("Not authenticated");
+      }
 
-    setTransfers((prev) => [newTransfer, ...prev]);
-    setSelectedTransferId(newId);
+      if (!sendFlowDraft.recipientId) {
+        throw new Error("Please select a recipient");
+      }
 
-    // Deduct from wallet balance
-    const totalDeducted = sendFlowDraft.sendAmount + sendFlowDraft.fee;
-    setWalletBalance((prev) => Math.max(0, Number((prev - totalDeducted).toFixed(2))));
+      if (
+        !Number.isFinite(sendFlowDraft.sendAmount) ||
+        sendFlowDraft.sendAmount <= 0
+      ) {
+        throw new Error("Invalid transfer amount");
+      }
 
-    // Add immediate notification
-    const newNotif: Notification = {
-      id: `notif_${Date.now()}`,
-      userId: user?.id || "usr_john_doe_01",
-      title: "Transfer Processing",
-      message: `${receiveAmount.toLocaleString()} ${sendFlowDraft.recipientCurrency} is being sent to ${sendFlowDraft.recipientName}.`,
-      type: "transfer",
-      isRead: false,
-      createdAt: new Date().toISOString(),
-    };
-    setNotifications((prev) => [newNotif, ...prev]);
+      const currentRate = getRateFor(
+        sendFlowDraft.recipientCurrency
+      );
 
-    try {
-      await fetch("/api/transfers", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(newTransfer),
-      });
-    } catch (e) {
-      console.error(e);
-    }
+      const receiveAmount = Number(
+        (
+          sendFlowDraft.sendAmount * currentRate
+        ).toFixed(2)
+      );
 
-    return newTransfer;
-  };
+      const newId = `SD-2026-${Math.floor(
+        100000 + Math.random() * 900000
+      )}`;
 
-  const updateTransferStep = async (transferId: string, step: number, status?: TransferStatus) => {
-    const targetStatus = status || (step === 4 ? "delivered" : "processing");
+      const transferPayload = {
+        id: newId,
+        userId,
+        recipientId:
+          sendFlowDraft.recipientId,
+        senderAmount:
+          sendFlowDraft.sendAmount,
+        senderCurrency:
+          sendFlowDraft.sendCurrency,
+        recipientAmount: receiveAmount,
+        recipientCurrency:
+          sendFlowDraft.recipientCurrency,
+        fee: calculateTransferFee(
+          sendFlowDraft.sendAmount
+        ),
+        exchangeRate: currentRate,
+        deliveryMethod:
+          sendFlowDraft.deliveryMethod,
+        provider: sendFlowDraft.provider,
+        accountNumber:
+          sendFlowDraft.accountNumber,
+        recipientName:
+          sendFlowDraft.recipientName,
+        note: sendFlowDraft.note,
+      };
 
-    setTransfers((prev) =>
-      prev.map((t) => {
-        if (t.id === transferId) {
-          return {
-            ...t,
-            currentStep: step,
-            status: targetStatus,
-            estimatedDelivery: step === 4 ? "Delivered" : t.estimatedDelivery,
-          };
+      setIsLoading(true);
+
+      try {
+        const res = await fetch(
+          "/api/transfers",
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify(
+              transferPayload
+            ),
+          }
+        );
+
+        const data = await res.json();
+
+        if (!res.ok || !data.transfer) {
+          throw new Error(
+            data.error ||
+              "Transfer could not be completed"
+          );
         }
-        return t;
-      })
+
+        /*
+         * The API/database is authoritative.
+         * Reload all account data after the transfer.
+         */
+        await refreshUserData();
+
+        setSelectedTransferId(
+          data.transfer.id
+        );
+
+        return data.transfer;
+      } catch (error) {
+        console.error(
+          "Transfer failed:",
+          error
+        );
+        throw error;
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+  const updateTransferStep = async (
+    transferId: string,
+    step: number,
+    status?: string
+  ) => {
+    const targetStatus =
+      status ||
+      (step === 4
+        ? "delivered"
+        : "processing");
+
+    const res = await fetch(
+      "/api/transfers",
+      {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          id: transferId,
+          currentStep: step,
+          status: targetStatus,
+        }),
+      }
     );
 
-    try {
-      await fetch("/api/transfers", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: transferId, currentStep: step, status: targetStatus }),
-      });
-    } catch (e) {
-      console.error(e);
+    const data = await res.json();
+
+    if (!res.ok) {
+      throw new Error(
+        data.error ||
+          "Failed to update transfer"
+      );
     }
+
+    /*
+     * Reload from PostgreSQL so tracking/history
+     * always reflects the stored transaction.
+     */
+    await refreshUserData();
   };
 
-  const updateRate = async (toCurrency: string, rate: number) => {
-    setDemoSettings((prev) => ({ ...prev, customRate: rate }));
-    setRates((prev) =>
-      prev.map((r) => (r.toCurrency === toCurrency ? { ...r, rate, updatedAt: new Date().toISOString() } : r))
+  /*
+   * RATES
+   */
+  const updateRate = async (
+    toCurrency: string,
+    rate: number
+  ) => {
+    setDemoSettings((prev) => ({
+      ...prev,
+      customRate: rate,
+    }));
+
+    const res = await fetch(
+      "/api/rates",
+      {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          toCurrency,
+          rate,
+        }),
+      }
     );
 
-    try {
-      await fetch("/api/rates", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ toCurrency, rate }),
-      });
-    } catch (e) {
-      console.error(e);
+    const data = await res.json();
+
+    if (!res.ok) {
+      throw new Error(
+        data.error ||
+          "Failed to update exchange rate"
+      );
+    }
+
+    const ratesRes = await fetch(
+      "/api/rates"
+    );
+
+    if (ratesRes.ok) {
+      const ratesData =
+        await ratesRes.json();
+
+      setRates(
+        ratesData.rates ?? []
+      );
     }
   };
 
-  const markNotificationsAsRead = async () => {
-    setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
+  /*
+   * NOTIFICATIONS
+   */
+  const markNotificationsAsRead =
+    async () => {
+      if (!user?.id) return;
+
+      const res = await fetch(
+        "/api/notifications",
+        {
+          method: "PUT",
+          headers: {
+            "Content-Type":
+              "application/json",
+          },
+          body: JSON.stringify({
+            markAllAsRead: true,
+            userId: user.id,
+          }),
+        }
+      );
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(
+          data.error ||
+            "Failed to mark notifications as read"
+        );
+      }
+
+      await fetchUserData(user.id);
+    };
+
+  /*
+   * TOP UP
+   *
+   * No optimistic-only balance.
+   * The database determines the final balance.
+   */
+  const topUpWallet = async (
+    amount: number,
+    method?: string,
+    cardLast4?: string
+  ) => {
+    const userId = user?.id;
+
+    if (!userId) {
+      throw new Error("Not authenticated");
+    }
+
+    if (
+      !Number.isFinite(amount) ||
+      amount <= 0
+    ) {
+      throw new Error("Invalid top-up amount");
+    }
+
+    setIsLoading(true);
+
     try {
-      await fetch("/api/notifications", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ markAllAsRead: true }),
-      });
-    } catch (e) {
-      console.error(e);
+      const res = await fetch(
+        "/api/wallet",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type":
+              "application/json",
+          },
+          body: JSON.stringify({
+            userId,
+            amount,
+            method: method || "card",
+            cardLast4,
+          }),
+        }
+      );
+
+      const data = await res.json();
+
+      if (!res.ok || !data.wallet) {
+        throw new Error(
+          data.error ||
+            "Top-up failed"
+        );
+      }
+
+      /*
+       * Reload wallet, transactions/history,
+       * recipients and notifications.
+       */
+      await refreshUserData();
+    } catch (error) {
+      console.error(
+        "Top-up error:",
+        error
+      );
+      throw error;
+    } finally {
+      setIsLoading(false);
     }
   };
 
+  /*
+   * RESET DEMO DATA
+   */
   const resetAllDemoData = async () => {
-    setUser(INITIAL_USER);
-    setRecipients(INITIAL_RECIPIENTS);
-    setTransfers(INITIAL_TRANSFERS);
-    setRates(INITIAL_RATES);
-    setNotifications(INITIAL_NOTIFICATIONS);
-    setDemoSettings({ customRate: 129.50, instantDelivery: false });
-    setSelectedTransferId("SD-2026-892104");
-    setWalletBalance(0);
-
     try {
-      await fetch("/api/demo/reset", { method: "POST" });
-    } catch (e) {
-      console.error(e);
+      const res = await fetch(
+        "/api/demo/reset",
+        {
+          method: "POST",
+        }
+      );
+
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(
+          data.error ||
+            "Failed to reset demo data"
+        );
+      }
+
+      const ratesRes = await fetch(
+        "/api/rates"
+      );
+
+      if (ratesRes.ok) {
+        const ratesData =
+          await ratesRes.json();
+
+        setRates(
+          ratesData.rates ?? []
+        );
+      }
+
+      setDemoSettings({
+        customRate: 129.5,
+        instantDelivery: false,
+      });
+
+      setSelectedTransferId(null);
+
+      if (user?.id) {
+        await fetchUserData(user.id);
+      } else {
+        navigateTo("welcome");
+      }
+    } catch (error) {
+      console.error(
+        "Reset error:",
+        error
+      );
+      throw error;
     }
   };
 
@@ -489,36 +926,30 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         isLoading,
         walletBalance,
         demoSettings,
+
         navigateTo,
         setActiveTab,
         setSelectedTransferId,
+
         login,
         signup,
         logout,
+
         addRecipient,
         updateRecipient,
         deleteRecipient,
+
         updateSendDraft,
         initiateSendFlow,
         confirmAndSendTransfer,
         updateTransferStep,
+
         updateRate,
         markNotificationsAsRead,
         resetAllDemoData,
         getRateFor,
-        topUpWallet: (amount: number) => {
-          setWalletBalance((prev) => Number((prev + amount).toFixed(2)));
-          const newNotif: Notification = {
-            id: `notif_${Date.now()}`,
-            userId: user?.id || "usr_john_doe_01",
-            title: "Wallet Funded 💰",
-            message: `$${amount.toFixed(2)} USD has been added to your Sendora wallet.`,
-            type: "transfer",
-            isRead: false,
-            createdAt: new Date().toISOString(),
-          };
-          setNotifications((prev) => [newNotif, ...prev]);
-        },
+
+        topUpWallet,
       }}
     >
       {children}
@@ -528,8 +959,12 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
 export const useApp = () => {
   const context = useContext(AppContext);
+
   if (!context) {
-    throw new Error("useApp must be used within an AppProvider");
+    throw new Error(
+      "useApp must be used within an AppProvider"
+    );
   }
+
   return context;
 };

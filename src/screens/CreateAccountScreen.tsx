@@ -36,7 +36,7 @@ export const CreateAccountScreen: React.FC = () => {
     }
 
     setErrors({});
-    await signup(fullName, email, phone);
+    await signup(fullName, email, phone, password);
   };
 
   return (
@@ -87,9 +87,8 @@ export const CreateAccountScreen: React.FC = () => {
               placeholder="e.g. John Doe"
               value={fullName}
               onChange={(e) => setFullName(e.target.value)}
-              className={`w-full bg-slate-800/80 border ${
-                errors.fullName ? "border-rose-500" : "border-slate-700"
-              } rounded-2xl pl-11 pr-4 py-3.5 text-sm font-medium text-white focus:outline-none focus:border-indigo-500`}
+              className={`w-full bg-slate-800/80 border ${errors.fullName ? "border-rose-500" : "border-slate-700"
+                } rounded-2xl pl-11 pr-4 py-3.5 text-sm font-medium text-white focus:outline-none focus:border-indigo-500`}
             />
             <User className="w-4 h-4 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2" />
           </div>
@@ -107,9 +106,8 @@ export const CreateAccountScreen: React.FC = () => {
               placeholder="+1 (555) 234-5678"
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
-              className={`w-full bg-slate-800/80 border ${
-                errors.phone ? "border-rose-500" : "border-slate-700"
-              } rounded-2xl pl-11 pr-4 py-3.5 text-sm font-medium text-white focus:outline-none focus:border-indigo-500`}
+              className={`w-full bg-slate-800/80 border ${errors.phone ? "border-rose-500" : "border-slate-700"
+                } rounded-2xl pl-11 pr-4 py-3.5 text-sm font-medium text-white focus:outline-none focus:border-indigo-500`}
             />
             <Phone className="w-4 h-4 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2" />
           </div>
@@ -127,9 +125,8 @@ export const CreateAccountScreen: React.FC = () => {
               placeholder="john.doe@sendora.app"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className={`w-full bg-slate-800/80 border ${
-                errors.email ? "border-rose-500" : "border-slate-700"
-              } rounded-2xl pl-11 pr-4 py-3.5 text-sm font-medium text-white focus:outline-none focus:border-indigo-500`}
+              className={`w-full bg-slate-800/80 border ${errors.email ? "border-rose-500" : "border-slate-700"
+                } rounded-2xl pl-11 pr-4 py-3.5 text-sm font-medium text-white focus:outline-none focus:border-indigo-500`}
             />
             <Mail className="w-4 h-4 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2" />
           </div>
@@ -147,9 +144,8 @@ export const CreateAccountScreen: React.FC = () => {
               placeholder="••••••••"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className={`w-full bg-slate-800/80 border ${
-                errors.password ? "border-rose-500" : "border-slate-700"
-              } rounded-2xl pl-11 pr-11 py-3.5 text-sm font-medium text-white focus:outline-none focus:border-indigo-500`}
+              className={`w-full bg-slate-800/80 border ${errors.password ? "border-rose-500" : "border-slate-700"
+                } rounded-2xl pl-11 pr-11 py-3.5 text-sm font-medium text-white focus:outline-none focus:border-indigo-500`}
             />
             <Lock className="w-4 h-4 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2" />
             <button
@@ -164,25 +160,22 @@ export const CreateAccountScreen: React.FC = () => {
           {/* Password Validation Checklist */}
           <div className="mt-2.5 space-y-1.5 bg-slate-800/40 p-3 rounded-xl border border-slate-800">
             <div
-              className={`text-[11px] font-semibold flex items-center gap-1.5 ${
-                hasMinLength ? "text-emerald-400" : "text-slate-400"
-              }`}
+              className={`text-[11px] font-semibold flex items-center gap-1.5 ${hasMinLength ? "text-emerald-400" : "text-slate-400"
+                }`}
             >
               <Check className={`w-3.5 h-3.5 ${hasMinLength ? "text-emerald-400" : "text-slate-600"}`} />
               At least 8 characters
             </div>
             <div
-              className={`text-[11px] font-semibold flex items-center gap-1.5 ${
-                hasNumber ? "text-emerald-400" : "text-slate-400"
-              }`}
+              className={`text-[11px] font-semibold flex items-center gap-1.5 ${hasNumber ? "text-emerald-400" : "text-slate-400"
+                }`}
             >
               <Check className={`w-3.5 h-3.5 ${hasNumber ? "text-emerald-400" : "text-slate-600"}`} />
               Contains at least 1 number
             </div>
             <div
-              className={`text-[11px] font-semibold flex items-center gap-1.5 ${
-                hasSpecialChar ? "text-emerald-400" : "text-slate-400"
-              }`}
+              className={`text-[11px] font-semibold flex items-center gap-1.5 ${hasSpecialChar ? "text-emerald-400" : "text-slate-400"
+                }`}
             >
               <Check className={`w-3.5 h-3.5 ${hasSpecialChar ? "text-emerald-400" : "text-slate-600"}`} />
               Contains at least 1 special character (!@#$)

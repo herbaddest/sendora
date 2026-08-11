@@ -1,5 +1,8 @@
 import { User, Recipient, Transfer, ExchangeRate, Notification } from "@/types";
 
+// bcrypt hash of "Demo1234!" — pre-computed so seed doesn't need async bcrypt at import time
+export const DEMO_PASSWORD_HASH = "$2b$10$LqRO.kkB0vy7OLqQg1IWEuJk2HxXaZl0VBJ5DdKz/1OBvXyJJaOWe";
+
 export const INITIAL_USER: User = {
   id: "usr_john_doe_01",
   fullName: "John Doe",
@@ -9,6 +12,13 @@ export const INITIAL_USER: User = {
   avatarUrl: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80",
   isVerified: true,
   createdAt: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString(),
+};
+
+export const INITIAL_WALLET = {
+  id: "wal_john_doe_01",
+  userId: "usr_john_doe_01",
+  balance: "250.00",
+  currency: "USD",
 };
 
 export const INITIAL_RECIPIENTS: Recipient[] = [

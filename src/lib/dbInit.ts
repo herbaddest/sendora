@@ -1,13 +1,28 @@
 import { db } from "@/db";
-import { users, recipients, transfers, exchangeRates, notifications } from "@/db/schema";
-import { INITIAL_USER, INITIAL_RECIPIENTS, INITIAL_TRANSFERS, INITIAL_RATES, INITIAL_NOTIFICATIONS } from "@/lib/seedData";
+import { users, wallets, recipients, transfers, exchangeRates, notifications } from "@/db/schema";
+import {
+  INITIAL_USER,
+  INITIAL_WALLET,
+  INITIAL_RECIPIENTS,
+  INITIAL_TRANSFERS,
+  INITIAL_RATES,
+  INITIAL_NOTIFICATIONS,
+  DEMO_PASSWORD_HASH,
+} from "@/lib/seedData";
 import { count } from "drizzle-orm";
 
 let isInitialized = false;
 
 function mapUserForDb(u: typeof INITIAL_USER) {
   return {
-    ...u,
+    id: u.id,
+    fullName: u.fullName,
+    email: u.email,
+    phone: u.phone,
+    country: u.country,
+    avatarUrl: u.avatarUrl,
+    isVerified: u.isVerified,
+    passwordHash: DEMO_PASSWORD_HASH,
     createdAt: new Date(u.createdAt),
   };
 }
@@ -54,6 +69,10 @@ export async function ensureDbSeeded() {
     if (Number(userCount[0]?.count || 0) === 0) {
       console.log("Seeding database with initial mock data...");
       await db.insert(users).values(mapUserForDb(INITIAL_USER));
+      await db.insert(wallets).values({
+        ...INITIAL_WALLET,
+        updatedAt: new Date(),
+      });
       await db.insert(recipients).values(INITIAL_RECIPIENTS.map(mapRecipientForDb));
       await db.insert(transfers).values(INITIAL_TRANSFERS.map(mapTransferForDb));
       await db.insert(exchangeRates).values(INITIAL_RATES.map(mapRateForDb));
@@ -71,15 +90,21 @@ export async function resetDatabase() {
     await db.delete(notifications);
     await db.delete(transfers);
     await db.delete(recipients);
+    await db.delete(wallets);
     await db.delete(users);
     await db.delete(exchangeRates);
 
     await db.insert(users).values(mapUserForDb(INITIAL_USER));
+    await db.insert(wallets).values({
+      ...INITIAL_WALLET,
+      updatedAt: new Date(),
+    });
     await db.insert(recipients).values(INITIAL_RECIPIENTS.map(mapRecipientForDb));
     await db.insert(transfers).values(INITIAL_TRANSFERS.map(mapTransferForDb));
     await db.insert(exchangeRates).values(INITIAL_RATES.map(mapRateForDb));
     await db.insert(notifications).values(INITIAL_NOTIFICATIONS.map(mapNotificationForDb));
 
+    isInitialized = false;
     return { success: true };
   } catch (err: any) {
     console.error("Database reset error:", err);

@@ -2,21 +2,37 @@ import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { recipients } from "@/db/schema";
 import { ensureDbSeeded } from "@/lib/dbInit";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 
-export async function GET() {
+// GET /api/recipients?userId=xxx
+export async function GET(req: Request) {
   await ensureDbSeeded();
-  const list = await db.select().from(recipients);
-  return NextResponse.json({ recipients: list });
+  const { searchParams } = new URL(req.url);
+  const userId = searchParams.get("userId");
+
+  const list = userId
+    ? await db.select().from(recipients).where(eq(recipients.userId, userId))
+    : await db.select().from(recipients);
+
+  const parsed = list.map((r) => ({
+    ...r,
+    createdAt: r.createdAt.toISOString(),
+  }));
+  return NextResponse.json({ recipients: parsed });
 }
 
 export async function POST(req: Request) {
   await ensureDbSeeded();
   try {
     const body = await req.json();
+    const userId = body.userId;
+    if (!userId) {
+      return NextResponse.json({ error: "userId is required" }, { status: 400 });
+    }
+
     const newRecipient = {
-      id: `rec_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
-      userId: body.userId || "usr_john_doe_01",
+      id: body.id || `rec_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+      userId,
       fullName: body.fullName,
       phone: body.phone,
       country: body.country || "Kenya",

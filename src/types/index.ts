@@ -9,6 +9,11 @@ export interface User {
   createdAt: string;
 }
 
+export interface Wallet {
+  balance: number;
+  currency: string;
+}
+
 export type DeliveryMethod = 'mobile_money' | 'bank_transfer';
 export type MobileMoneyProvider = 'M-Pesa' | 'Airtel Money' | 'Equity Bank' | 'KCB Bank';
 
@@ -42,7 +47,7 @@ export interface Transfer {
   accountNumber: string;
   recipientName: string;
   status: TransferStatus;
-  currentStep: number; // 1: Created, 2: Payment Received, 3: Sending, 4: Delivered
+  currentStep: number;
   note?: string;
   estimatedDelivery: string;
   createdAt: string;
@@ -63,8 +68,18 @@ export interface Notification {
   userId: string;
   title: string;
   message: string;
-  type: 'transfer' | 'promo' | 'security';
+  type: 'transfer' | 'topup' | 'promo' | 'security';
   isRead: boolean;
+  createdAt: string;
+}
+
+export interface TopUp {
+  id: string;
+  userId: string;
+  amount: number;
+  method: string;
+  cardLast4?: string;
+  status: string;
   createdAt: string;
 }
 
