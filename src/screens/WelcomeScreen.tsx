@@ -16,9 +16,9 @@ export const WelcomeScreen: React.FC = () => {
 
   const handleLogin = async () => {
     setLoginError("");
-    const success = await login(loginEmail, loginPassword);
-    if (!success) {
-      setLoginError("Invalid email or password");
+    const error = await login(loginEmail, loginPassword);
+    if (error) {
+      setLoginError(error);
     }
   };
 

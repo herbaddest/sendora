@@ -67,7 +67,7 @@ export async function POST(req: Request) {
   await ensureDbSeeded();
   try {
     const body = await req.json();
-    const { action, fullName, email, phone, password } = body;
+    const { action, fullName, email, phone, password, country } = body;
 
     if (action === "signup") {
       if (!email || !password) {
@@ -88,7 +88,7 @@ export async function POST(req: Request) {
         email,
         phone: phone || "+1 (555) 000-0000",
         passwordHash,
-        country: "US",
+        country: country || "US",
         isVerified: true,
         createdAt: new Date(),
       };
@@ -113,6 +113,7 @@ export async function POST(req: Request) {
           email: newUser.email,
           phone: newUser.phone,
           country: newUser.country,
+          avatarUrl: null,
           isVerified: newUser.isVerified,
           createdAt: newUser.createdAt.toISOString(),
         },

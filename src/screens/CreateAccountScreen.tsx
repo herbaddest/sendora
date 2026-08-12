@@ -21,8 +21,11 @@ export const CreateAccountScreen: React.FC = () => {
   const hasSpecialChar = /[!@#$%^&*(),.?":{}|<>]/.test(password);
   const isPasswordValid = hasMinLength && hasNumber && hasSpecialChar;
 
+  const [signupError, setSignupError] = useState("");
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setSignupError("");
     const newErrors: { [key: string]: string } = {};
 
     if (!fullName.trim()) newErrors.fullName = "Full name is required";
@@ -36,7 +39,10 @@ export const CreateAccountScreen: React.FC = () => {
     }
 
     setErrors({});
-    await signup(fullName, email, phone, password);
+    const error = await signup(fullName, email, phone, password, country);
+    if (error) {
+      setSignupError(error);
+    }
   };
 
   return (

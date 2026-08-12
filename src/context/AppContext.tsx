@@ -76,13 +76,14 @@ interface AppContextType {
   setActiveTab: (tab: BottomTab) => void;
   setSelectedTransferId: (id: string | null) => void;
 
-  login: (email: string, password: string) => Promise<boolean>;
+  login: (email: string, password: string) => Promise<string | null>;
   signup: (
     fullName: string,
     email: string,
     phone: string,
-    password: string
-  ) => Promise<boolean>;
+    password: string,
+    country?: string
+  ) => Promise<string | null>;
   logout: () => void;
 
   addRecipient: (
@@ -277,7 +278,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({
   const login = async (
     email: string,
     password: string
-  ): Promise<boolean> => {
+  ): Promise<string | null> => {
     setIsLoading(true);
 
     try {
@@ -296,7 +297,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({
       const data = await res.json();
 
       if (!res.ok || !data.user) {
-        return false;
+        return data.error || "Invalid email or password";
       }
 
       setUser(data.user);
@@ -310,10 +311,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({
 
       navigateTo("home");
 
-      return true;
+      return null;
     } catch (error) {
       console.error("Login error:", error);
-      return false;
+      return "Unable to connect. Please check your connection and try again.";
     } finally {
       setIsLoading(false);
     }
@@ -326,8 +327,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({
     fullName: string,
     email: string,
     phone: string,
-    password: string
-  ): Promise<boolean> => {
+    password: string,
+    country?: string
+  ): Promise<string | null> => {
     setIsLoading(true);
 
     try {
@@ -342,13 +344,14 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({
           email,
           phone,
           password,
+          country,
         }),
       });
 
       const data = await res.json();
 
       if (!res.ok || !data.user) {
-        return false;
+        return data.error || "Account creation failed. Please try again.";
       }
 
       setUser(data.user);
@@ -364,14 +367,27 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({
         setWalletBalance(0);
       }
 
-      await fetchUserData(data.user.id);
+      /*
+       * New account — skip fetching recipients/transfers/notifications
+       * (they are empty). Only fetch exchange rates so the send flow
+       * has correct rate data.
+       */
+      try {
+        const ratesRes = await fetch("/api/rates");
+        if (ratesRes.ok) {
+          const ratesData = await ratesRes.json();
+          setRates(ratesData.rates ?? []);
+        }
+      } catch {
+        // Non-critical — rates will use defaults
+      }
 
       navigateTo("home");
 
-      return true;
+      return null;
     } catch (error) {
       console.error("Signup error:", error);
-      return false;
+      return "Unable to connect. Please check your connection and try again.";
     } finally {
       setIsLoading(false);
     }
